@@ -7,11 +7,9 @@ from io import BytesIO
 
 app = FastAPI()
 
-# Allow CORS from frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # or use specific domain
-    allow_credentials=True,
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -26,15 +24,15 @@ async def detect(file: UploadFile = File(...)):
     frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+    faces = face_cascade.detectMultiScale(gray, 1.2, 5)
     for (x, y, w, h) in faces:
-        cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
+        cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 255), 2)
         roi_gray = gray[y:y+h, x:x+w]
-        eyes = eye_cascade.detectMultiScale(roi_gray)
+        eyes = eye_cascade.detectMultiScale(roi_gray, 1.1, 4)
         for (ex, ey, ew, eh) in eyes:
-            cv2.rectangle(frame[y:y+h, x:x+w], (ex, ey), (ex+ew, ey+eh), (0, 255, 0), 2)
+            cv2.rectangle(frame[y:y+h, x:x+w], (ex, ey), (ex+ew, ey+eh), (255, 0, 255), 2)
 
-    _, img_encoded = cv2.imencode('.jpg', frame)
+    _, img_encoded = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 50])
     return StreamingResponse(BytesIO(img_encoded.tobytes()), media_type="image/jpeg")
 
 @app.get("/")

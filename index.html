@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Neon Face & Eye Detection</title>
+  <style>
+    body {
+      background: #0d0d0d;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+    }
+    h1 {
+      font-size: 2em;
+      color: #0ff;
+      text-shadow: 0 0 10px #0ff;
+      margin: 20px 0;
+    }
+    .video-container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 20px;
+    }
+    video, img {
+      width: 480px;
+      height: 360px;
+      border: 4px solid #0ff;
+      border-radius: 12px;
+      box-shadow: 0 0 20px #0ff, 0 0 40px #00f, 0 0 60px #0ff;
+    }
+    footer {
+      color: #888;
+      font-size: 0.9em;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Real Time Face & Eye Detection</h1>
+
+  <div class="video-container">
+    <video id="webcam" autoplay playsinline></video>
+    <img id="output" />
+  </div>
+
+  <canvas id="capture" width="480" height="360" style="display:none;"></canvas>
+
+  <footer>Powered by FastAPI, OpenCV & Render</footer>
+
+  <script>
+    const video = document.getElementById('webcam');
+    const canvas = document.getElementById('capture');
+    const output = document.getElementById('output');
+    const ctx = canvas.getContext('2d');
+
+    let processing = false;
+
+    async function startWebcam() {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 480, height: 360 } });
+      video.srcObject = stream;
+      setInterval(captureAndSend, 700);
+    }
+
+    async function captureAndSend() {
+      if (processing) return;
+      processing = true;
+
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(async (blob) => {
+        const formData = new FormData();
+        formData.append("file", blob, "frame.jpg");
+
+        const response = await fetch("https://realtime-face-eye-detection.onrender.com/detect", {
+          method: "POST",
+          body: formData
+        });
+
+        const blobRes = await response.blob();
+        output.src = URL.createObjectURL(blobRes);
+        processing = false;
+
+      }, 'image/jpeg', 0.3);
+    }
+
+    startWebcam();
+  </script>
+
+</body>
+</html>

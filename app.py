@@ -1,86 +1,36 @@
+from fastapi import FastAPI, Response
 import cv2
-import time
-import tkinter as tk
-from PIL import Image, ImageTk
 
-# Load Haarcascade Classifiers
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-eye_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_eye.xml')
+app = FastAPI()
 
-# Initialize Webcam
-cap = cv2.VideoCapture(0)
+face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
+eye_cascade = cv2.CascadeClassifier('haarcascade_eye.xml')
 
-# Tkinter GUI Setup
-root = tk.Tk()
-root.title("Face & Eye Detector with Stable Live Preview + FPS")
+camera = cv2.VideoCapture(0)
 
-video_label = tk.Label(root)
-video_label.pack()
+def generate_frames():
+    while True:
+        success, frame = camera.read()
+        if not success:
+            break
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+        for (x, y, w, h) in faces:
+            cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
+            roi_gray = gray[y:y+h, x:x+w]
+            eyes = eye_cascade.detectMultiScale(roi_gray)
+            for (ex, ey, ew, eh) in eyes:
+                cv2.rectangle(frame[y:y+h, x:x+w], (ex, ey), (ex+ew, ey+eh), (0, 255, 0), 2)
 
-fps_label = tk.Label(root, text="FPS: 0.00", font=("Arial", 14))
-fps_label.pack(pady=5)
+        ret, buffer = cv2.imencode('.jpg', frame)
+        frame = buffer.tobytes()
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
-running = False
+@app.get("/")
+def index():
+    return {"message": "Face and Eye Detection API"}
 
-def update_frame():
-    global running
-    if not running:
-        return
-
-    start_time = time.time()
-
-    ret, frame = cap.read()
-    if not ret:
-        return
-
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    faces = face_cascade.detectMultiScale(gray, 1.1, 5, minSize=(100, 100))
-
-    for (x, y, w, h) in faces:
-        roi_color = frame[y:y+h, x:x+w]
-        roi_gray = gray[y:y+h, x:x+w]
-        cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
-
-        eyes = eye_cascade.detectMultiScale(roi_gray, 1.1, 10, minSize=(20, 20))
-        for (ex, ey, ew, eh) in eyes:
-            cv2.rectangle(roi_color, (ex, ey), (ex+ew, ey+eh), (255, 0, 0), 2)
-
-    fps = 1.0 / (time.time() - start_time)
-    fps_label.config(text=f"FPS: {fps:.2f}")
-
-    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    img = Image.fromarray(frame_rgb)
-    imgtk = ImageTk.PhotoImage(image=img)
-
-    video_label.imgtk = imgtk
-    video_label.configure(image=imgtk)
-
-    root.after(10, update_frame)  # Schedule next frame (10 ms delay)
-
-def start_detection():
-    global running
-    if not running:
-        running = True
-        update_frame()
-
-def stop_detection():
-    global running
-    running = False
-
-def on_closing():
-    stop_detection()
-    cap.release()
-    root.destroy()
-
-# Buttons
-start_button = tk.Button(root, text="Start Detection", font=("Arial", 14), bg="green", fg="white", command=start_detection)
-start_button.pack(pady=5)
-
-stop_button = tk.Button(root, text="Stop Detection", font=("Arial", 14), bg="red", fg="white", command=stop_detection)
-stop_button.pack(pady=5)
-
-exit_button = tk.Button(root, text="Exit", font=("Arial", 14), bg="gray", fg="white", command=on_closing)
-exit_button.pack(pady=5)
-
-root.protocol("WM_DELETE_WINDOW", on_closing)
-root.mainloop()
+@app.get("/video_feed")
+def video_feed():
+    return Response(generate_frames(), media_type='multipart/x-mixed-replace; boundary=frame')

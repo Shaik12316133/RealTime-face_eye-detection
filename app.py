@@ -29,7 +29,7 @@ def generate_frames():
 
 @app.get("/")
 def index():
-    return {"message": "Face and Eye Detection API"}
+    return {"status": "Face & Eye Detection API running"}
 
 @app.get("/video_feed")
 def video_feed():
